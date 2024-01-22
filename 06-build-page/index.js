@@ -2,14 +2,12 @@ const path = require('path');
 const fs = require('fs');
 const fsPromises = fs.promises;
 
-const sourceFilesPath = path.join(__dirname);
 const sourceComponents = path.join(__dirname, 'components');
 const sourceHtml = path.join(__dirname, 'template.html');
 const sourceAssets = path.join(__dirname, 'assets');
 const sourceStyles = path.join(__dirname, 'styles');
 const targetFilesPath = path.join(__dirname, 'project-dist');
 const targeAssets = path.join(targetFilesPath, 'assets');
-const targetHtml = path.join(targetFilesPath, 'index.html');
 
 async function createDirectory(folderPath) {
   return new Promise((resolve, reject) => {
@@ -26,29 +24,44 @@ async function createDirectory(folderPath) {
 
 async function removeFolder(folderPath) {
   return new Promise((resolve, reject) => {
-    fs.rm(folderPath, { recursive: true }, (err) => {
+    fs.rm(folderPath, { recursive: true, force: true }, (err) => {
       if (err) {
         console.log('Error deleting folder: ', err);
         reject();
       }
-      console.log('Folder removed');
       resolve();
     });
   });
 }
 
 async function copyDir(from, to) {
-  await removeFolder(to);
-  await createDirectory(to);
-  fs.copyFile(from, to, (err) => {
-    if (err) {
-      console.log('Copy error: ', err);
-    }
-    console.log('Copy compleated');
+  return new Promise((resolve, reject) => {
+    fs.readdir(from, { withFileTypes: true }, (err, files) => {
+      if (err) {
+        console.log(err);
+      }
+      files.forEach((file) => {
+        if (file.isDirectory()) {
+          fs.mkdir(path.join(to, file.name), { recursive: true }, (err) => {
+            if (err) console.log(err);
+          });
+          copyDir(path.join(from, file.name), path.join(to, file.name));
+        } else {
+          fs.readFile(path.join(file.path, file.name), (err, data) => {
+            if (err) {
+              console.log(err);
+              reject();
+            }
+            fs.writeFile(path.join(to, file.name), data, (err) => {
+              if (err) console.log('COPY ERR', err);
+            });
+          });
+        }
+      });
+      resolve();
+    });
   });
 }
-
-createDirectory(targetFilesPath);
 
 // Create styles Bundle
 
@@ -70,8 +83,6 @@ async function createStylesBunle() {
     });
   });
 }
-createStylesBunle();
-copyDir(sourceAssets, targeAssets);
 
 async function creareHtmlMarkup() {
   return new Promise((resolve, reject) => {
@@ -104,5 +115,30 @@ async function creareHtmlMarkup() {
     });
   });
 }
+async function buildPage() {
+  fs.access(targeAssets, (err) => {
+    if (err) {
+      createDirectory(targetFilesPath);
+      asyncFunc();
+    } else {
+      asyncFunc();
+    }
+  });
+  async function asyncFunc() {
+    await removeFolder(targeAssets);
+    createDirectory(targetFilesPath);
+    await copyDir(sourceAssets, targeAssets);
+    await createStylesBunle();
+    await creareHtmlMarkup();
+  }
 
-creareHtmlMarkup();
+  console.log('Build completed');
+  //   removeFolder(targeAssets)
+  //     .then(copyDir(sourceAssets, targeAssets))
+  //     .then(createDirectory(targetFilesPath))
+  //     .then(creareHtmlMarkup())
+  //     .then(createStylesBunle());
+  //   console.log('Build completed');
+}
+
+buildPage();
