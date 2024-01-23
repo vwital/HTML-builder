@@ -38,21 +38,34 @@ async function copyDir(from, to) {
   return new Promise((resolve, reject) => {
     fs.readdir(from, { withFileTypes: true }, (err, files) => {
       if (err) {
-        console.log(err);
+        console.log('Readdir err', err);
       }
       files.forEach((file) => {
         if (file.isDirectory()) {
-          fs.mkdir(path.join(to, file.name), { recursive: true }, (err) => {
-            if (err) console.log(err);
-          });
+          fsPromises.mkdir(
+            path.join(to, file.name),
+            { recursive: true },
+            (err) => {
+              if (err) console.log('Folder', err);
+            },
+            resolve(),
+          );
+
           copyDir(path.join(from, file.name), path.join(to, file.name));
         } else {
           fs.readFile(path.join(file.path, file.name), (err, data) => {
             if (err) {
-              console.log(err);
+              console.log('Read Err', err);
               reject();
             }
-            fs.writeFile(path.join(to, file.name), data, (err) => {
+            fsPromises.mkdir(
+              path.dirname(path.join(to, file.name)),
+              { recursive: true },
+              (err) => {
+                if (err) console.log('MKDIR ERR');
+              },
+            );
+            fsPromises.writeFile(path.join(to, file.name), data, (err) => {
               if (err) console.log('COPY ERR', err);
             });
           });
@@ -62,9 +75,6 @@ async function copyDir(from, to) {
     });
   });
 }
-
-// Create styles Bundle
-
 async function createStylesBunle() {
   return new Promise((resolve, reject) => {
     const targetFile = path.join(targetFilesPath, 'style.css');
@@ -90,22 +100,30 @@ async function creareHtmlMarkup() {
     const output = fs.createWriteStream(targetFile);
     let templateData = '';
     fs.readFile(sourceHtml, 'utf-8', (err, data) => {
+      if (err) {
+        console.log(err);
+        reject();
+      }
       templateData = data;
     });
     fs.readdir(sourceComponents, (err, files) => {
       if (err) console.log(err);
-      files.forEach((file, idx) => {
+      let usedFiles = 0;
+      files.forEach((file) => {
         const currentComponent = path.basename(
           file.slice(0, file.lastIndexOf('.')),
         );
         fs.readFile(path.join(sourceComponents, file), 'utf-8', (err, data) => {
+          if (err) {
+            console.log(err);
+            reject();
+          }
           templateData = templateData.replace(`{{${currentComponent}}}`, data);
-          if (err) console.log(err);
-          if (idx === files.length - 1) {
+          usedFiles += 1;
+          if (usedFiles === files.length) {
             output.write(templateData, (err) => {
               if (err) {
                 console.log(err);
-                reject();
               }
               resolve();
             });
@@ -133,12 +151,6 @@ async function buildPage() {
   }
 
   console.log('Build completed');
-  //   removeFolder(targeAssets)
-  //     .then(copyDir(sourceAssets, targeAssets))
-  //     .then(createDirectory(targetFilesPath))
-  //     .then(creareHtmlMarkup())
-  //     .then(createStylesBunle());
-  //   console.log('Build completed');
 }
 
 buildPage();
